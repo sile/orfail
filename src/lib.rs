@@ -193,3 +193,17 @@ where
         }
     }
 }
+
+#[macro_export]
+macro_rules! todo {
+    () => {
+        return Err(Failure::new().message("not yet implemented"));
+    };
+}
+
+#[macro_export]
+macro_rules! unreachable {
+    () => {
+        return Err(Failure::new().message("internal error: entered unreachable code"));
+    };
+}
