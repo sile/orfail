@@ -10,15 +10,15 @@ An error handling library for portable unrecoverable errors.
 
 This crate provides,
 
-- [`Failure`] struct that represents an unrecoverable error with an error code, message and user-level backtrace
+- `Failure` struct that represents an unrecoverable error with an error code, message and user-level backtrace
   - Error code and message are optional
-  - Constituted with simple types ([`u32`], [`String`], and [`Vec`] of those)
+  - Constituted with simple types (`u32`, `String`, and `Vec` of those)
     - Portable across process and language boundaries
-    - Optional [`serde`] support ("serde" feature)
-  - Doesn't implement [`std::error::Error`] trait
-- [`OrFail`] trait
-  - Backtrace location is appended to [`Failure`] each time when calling [`OrFail::or_fail()`]
-  - [`bool`], [`Option<_>`] and [`Result<_, _>`](std::result::Result) implement [`OrFail`]
+    - Optional `serde` support ("serde" feature)
+  - Doesn't implement `std::error::Error` trait
+- `OrFail` trait
+  - Backtrace location is appended to `Failure` each time when calling `OrFail::or_fail()`
+  - `bool`, `Option<_>` and `Result<_, _>` implement `OrFail`
 
 Examples
 --------
