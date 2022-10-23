@@ -182,6 +182,13 @@ impl Location {
     }
 }
 
+impl Default for Location {
+    #[track_caller]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// This trait allows for converting a value into `Result<_, Failure>`.
 pub trait OrFail<C: ErrorCode>: Sized {
     /// Success value type (used for the `Ok(_)` variant).
