@@ -38,7 +38,6 @@
 //!   at src/lib.rs:12
 //! "#.to_owned()));
 //! ```
-
 #![warn(missing_docs)]
 use std::marker::PhantomData;
 
