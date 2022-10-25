@@ -48,35 +48,42 @@ pub struct Failure<C = u32> {
 
 impl<C: ErrorCode> Failure<C> {
     #[track_caller]
-    pub fn new() -> Self {
+    pub fn new(code: C, message: impl Into<String>) -> Self {
         Self {
-            code: None,
-            message: None,
-            backtrace: vec![Location::new()],
-            _code_type: PhantomData,
+            code: Some(code.error_code()),
+            message: Some(message.into()),
+            ..Default::default()
         }
     }
 
-    pub fn code<D: ErrorCode>(self, code: D) -> Failure<D> {
+    #[track_caller]
+    pub fn with_code(code: C) -> Self {
         let code = code.error_code();
-        Failure {
+        Self {
             code: Some(code),
-            message: self.message.or_else(|| D::default_message(code)),
-            backtrace: self.backtrace,
-            _code_type: PhantomData,
+            message: C::default_message(code),
+            ..Default::default()
         }
     }
 
-    pub fn message(mut self, message: impl Into<String>) -> Self {
-        self.message = Some(message.into());
-        self
+    #[track_caller]
+    pub fn with_message(message: impl Into<String>) -> Self {
+        Self {
+            message: Some(message.into()),
+            ..Default::default()
+        }
     }
 }
 
 impl<C: ErrorCode> Default for Failure<C> {
     #[track_caller]
     fn default() -> Self {
-        Self::new()
+        Self {
+            code: None,
+            message: None,
+            backtrace: vec![Location::new()],
+            _code_type: PhantomData,
+        }
     }
 }
 
@@ -125,57 +132,72 @@ impl Location {
 
 pub trait OrFail<C: ErrorCode>: Sized {
     type Value;
+    type Error;
 
     fn or_fail(self) -> Result<Self::Value, C>;
 
-    fn or_fail_with<D: ErrorCode>(
-        self,
-        f: impl FnOnce(Failure<C>) -> Failure<D>,
-    ) -> Result<Self::Value, D> {
-        self.or_fail().map_err(f)
-    }
+    fn or_fail_with(self, f: impl FnOnce(Self::Error) -> Failure<C>) -> Result<Self::Value, C>;
 }
 
 impl<C: ErrorCode> OrFail<C> for bool {
     type Value = ();
+    type Error = ();
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value, C> {
+        self.or_fail_with(|()| Failure::with_message("expected `true` but got `false`"))
+    }
+
+    #[track_caller]
+    fn or_fail_with(self, f: impl FnOnce(Self::Error) -> Failure<C>) -> Result<Self::Value, C> {
         if self {
             Ok(())
         } else {
-            Err(Failure::new().message("expected `true` but got `false`"))
+            Err(f(()))
         }
     }
 }
 
 impl<T, C: ErrorCode> OrFail<C> for Option<T> {
     type Value = T;
+    type Error = ();
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value, C> {
+        self.or_fail_with(|()| Failure::with_message("expected `Some(_)` but got `None`"))
+    }
+
+    #[track_caller]
+    fn or_fail_with(self, f: impl FnOnce(Self::Error) -> Failure<C>) -> Result<Self::Value, C> {
         if let Some(value) = self {
             Ok(value)
         } else {
-            Err(Failure::new().message("expected `Some(_)` but got `None`"))
+            Err(f(()))
         }
     }
 }
 
 impl<T, E: std::error::Error, C: ErrorCode> OrFail<C> for std::result::Result<T, E> {
     type Value = T;
+    type Error = E;
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value, C> {
-        self.map_err(|e| Failure::new().message(e.to_string()))
+        self.map_err(|e| Failure::with_message(e.to_string()))
+    }
+
+    #[track_caller]
+    fn or_fail_with(self, f: impl FnOnce(Self::Error) -> Failure<C>) -> Result<Self::Value, C> {
+        self.map_err(f)
     }
 }
 
-impl<T, C: ErrorCode, D: ErrorCode> OrFail<D> for Result<T, C>
+impl<T, C: ErrorCode, D: ErrorCode> OrFail<D> for std::result::Result<T, Failure<C>>
 where
     D: TakeOver<C>,
 {
     type Value = T;
+    type Error = Failure<D>;
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value, D> {
@@ -192,8 +214,14 @@ where
             }
         }
     }
+
+    #[track_caller]
+    fn or_fail_with(self, f: impl FnOnce(Self::Error) -> Failure<D>) -> Result<Self::Value, D> {
+        self.or_fail().map_err(f)
+    }
 }
 
+/// Similiar to [`std::todo!()`] but returning an `Err(Failure)` instead of panicking.
 #[macro_export]
 macro_rules! todo {
     () => {
@@ -201,9 +229,35 @@ macro_rules! todo {
     };
 }
 
+/// Similiar to [`std::unreachable!()`] but returning an `Err(Failure)` instead of panicking.
 #[macro_export]
 macro_rules! unreachable {
     () => {
         return Err(Failure::new().message("internal error: entered unreachable code"));
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        assert!((true.or_fail() as Result<_>).is_ok());
+        assert!((false.or_fail() as Result<_>).is_err());
+
+        let failure: Failure = false.or_fail().err().unwrap();
+        assert!(failure.code.is_none());
+        assert!(failure.message.is_some());
+        assert_eq!(failure.backtrace.len(), 1);
+
+        let failure: Failure = false
+            .or_fail_with(|_| Failure::with_code(10))
+            .or_fail()
+            .err()
+            .unwrap();
+        assert_eq!(failure.code, Some(10));
+        assert!(failure.message.is_none());
+        assert_eq!(failure.backtrace.len(), 2);
+    }
 }
