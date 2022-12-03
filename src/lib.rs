@@ -237,7 +237,10 @@ impl<T, E: std::error::Error, C: ErrorCode> OrFail<C> for std::result::Result<T,
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value, C> {
-        self.map_err(|e| Failure::new().message(e.to_string()))
+        match self {
+            Ok(t) => Ok(t),
+            Err(e) => Err(Failure::new().message(e.to_string())),
+        }
     }
 }
 
