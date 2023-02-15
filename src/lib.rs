@@ -39,38 +39,14 @@
 //! "#.to_owned()));
 //! ```
 #![warn(missing_docs)]
-use std::marker::PhantomData;
-
-/// This trait allows for returning an error code held by [`Failure`].
-pub trait ErrorCode {
-    /// Returns an error code representing this instance.
-    fn error_code(&self) -> u32;
-
-    /// Takes an error code and returns a message describing the code if possible.
-    #[allow(unused_variables)]
-    fn default_message(code: u32) -> Option<String> {
-        None
-    }
-}
-
-impl ErrorCode for u32 {
-    fn error_code(&self) -> u32 {
-        *self
-    }
-}
-
-/// A marker trait representing that `C` can be converted into the type implementing this trait.
-pub trait TakeOver<C: ErrorCode>: ErrorCode {}
-
-impl<C: ErrorCode> TakeOver<C> for u32 {}
 
 /// This crate specific [`Result`](std::result::Result) type.
-pub type Result<T, C = u32> = std::result::Result<T, Failure<C>>;
+pub type Result<T> = std::result::Result<T, Failure>;
 
 /// [`Failure`] typically represents an unrecoverable error with an error code, message, and backtrace.
 #[derive(Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Failure<C = u32> {
+pub struct Failure {
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -91,12 +67,9 @@ pub struct Failure<C = u32> {
     )]
     /// Backtrace.
     pub backtrace: Vec<Location>,
-
-    #[cfg_attr(feature = "serde", serde(skip))]
-    _code_type: PhantomData<C>,
 }
 
-impl<C: ErrorCode> Failure<C> {
+impl Failure {
     /// Makes a new [`Failure`] instance whose backtrace contains the current caller location.
     #[track_caller]
     pub fn new() -> Self {
@@ -104,14 +77,8 @@ impl<C: ErrorCode> Failure<C> {
     }
 
     /// Updates the error code of this [`Failure`] instance.
-    ///
-    /// If the error message of this instance is `None` and `C::default_message(code.error_code())` returns `Some(_)`,
-    /// the default message is set to the [`Failure::message`](#structfield.message) field.
-    pub fn code(mut self, code: C) -> Self {
-        self.code = Some(code.error_code());
-        if self.message.is_none() {
-            self.message = C::default_message(code.error_code());
-        }
+    pub fn code(mut self, code: u32) -> Self {
+        self.code = Some(code);
         self
     }
 
@@ -122,33 +89,30 @@ impl<C: ErrorCode> Failure<C> {
     }
 }
 
-impl<C: ErrorCode> Default for Failure<C> {
+impl Default for Failure {
     #[track_caller]
     fn default() -> Self {
         Self {
             code: None,
             message: None,
             backtrace: vec![Location::new()],
-            _code_type: PhantomData,
         }
     }
 }
 
-impl<C: ErrorCode> std::fmt::Debug for Failure<C> {
+impl std::fmt::Debug for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         std::fmt::Display::fmt(self, f)
     }
 }
 
-impl<C: ErrorCode> std::fmt::Display for Failure<C> {
+impl std::fmt::Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "failed")?;
         if let Some(code) = self.code {
             write!(f, " with error code '{code}'")?;
         }
         if let Some(message) = &self.message {
-            write!(f, " due to {message:?}")?;
-        } else if let Some(message) = self.code.and_then(C::default_message) {
             write!(f, " due to {message:?}")?;
         }
         writeln!(f)?;
@@ -190,25 +154,21 @@ impl Default for Location {
 }
 
 /// This trait allows for converting a value into `Result<_, Failure>`.
-pub trait OrFail<C: ErrorCode>: Sized {
+pub trait OrFail: Sized {
     /// Success value type (used for the `Ok(_)` variant).
     type Value;
-
-    /// Error value type (used for the `Err(_)` variant).
-    type Error;
 
     /// Returns `Err(Failure<C>)` if `self` is a failure value.
     ///
     /// If `Err(_)` is returned, this method should add the current caller location to the backtrace of the resulting `Failure<C>`.
-    fn or_fail(self) -> Result<Self::Value, C>;
+    fn or_fail(self) -> Result<Self::Value>;
 }
 
-impl<C: ErrorCode> OrFail<C> for bool {
+impl OrFail for bool {
     type Value = ();
-    type Error = ();
 
     #[track_caller]
-    fn or_fail(self) -> Result<Self::Value, C> {
+    fn or_fail(self) -> Result<Self::Value> {
         if self {
             Ok(())
         } else {
@@ -217,12 +177,11 @@ impl<C: ErrorCode> OrFail<C> for bool {
     }
 }
 
-impl<T, C: ErrorCode> OrFail<C> for Option<T> {
+impl<T> OrFail for Option<T> {
     type Value = T;
-    type Error = ();
 
     #[track_caller]
-    fn or_fail(self) -> Result<Self::Value, C> {
+    fn or_fail(self) -> Result<Self::Value> {
         if let Some(value) = self {
             Ok(value)
         } else {
@@ -231,12 +190,11 @@ impl<T, C: ErrorCode> OrFail<C> for Option<T> {
     }
 }
 
-impl<T, E: std::error::Error, C: ErrorCode> OrFail<C> for std::result::Result<T, E> {
+impl<T, E: std::error::Error> OrFail for std::result::Result<T, E> {
     type Value = T;
-    type Error = E;
 
     #[track_caller]
-    fn or_fail(self) -> Result<Self::Value, C> {
+    fn or_fail(self) -> Result<Self::Value> {
         match self {
             Ok(t) => Ok(t),
             Err(e) => Err(Failure::new().message(e.to_string())),
@@ -244,15 +202,11 @@ impl<T, E: std::error::Error, C: ErrorCode> OrFail<C> for std::result::Result<T,
     }
 }
 
-impl<T, C: ErrorCode, D: ErrorCode> OrFail<D> for std::result::Result<T, Failure<C>>
-where
-    D: TakeOver<C>,
-{
+impl<T> OrFail for Result<T> {
     type Value = T;
-    type Error = Failure<D>;
 
     #[track_caller]
-    fn or_fail(self) -> Result<Self::Value, D> {
+    fn or_fail(self) -> Result<Self::Value> {
         match self {
             Ok(value) => Ok(value),
             Err(mut failure) => {
@@ -261,7 +215,6 @@ where
                     code: failure.code,
                     message: failure.message,
                     backtrace: failure.backtrace,
-                    ..Default::default()
                 })
             }
         }
