@@ -158,9 +158,6 @@ pub trait OrFail: Sized {
     /// Success value type (used for the `Ok(_)` variant).
     type Value;
 
-    /// Error value type (used for the `Err(_)` variant).
-    type Error;
-
     /// Returns `Err(Failure<C>)` if `self` is a failure value.
     ///
     /// If `Err(_)` is returned, this method should add the current caller location to the backtrace of the resulting `Failure<C>`.
@@ -169,7 +166,6 @@ pub trait OrFail: Sized {
 
 impl OrFail for bool {
     type Value = ();
-    type Error = ();
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
@@ -183,7 +179,6 @@ impl OrFail for bool {
 
 impl<T> OrFail for Option<T> {
     type Value = T;
-    type Error = ();
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
@@ -197,7 +192,6 @@ impl<T> OrFail for Option<T> {
 
 impl<T, E: std::error::Error> OrFail for std::result::Result<T, E> {
     type Value = T;
-    type Error = E;
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
@@ -210,7 +204,6 @@ impl<T, E: std::error::Error> OrFail for std::result::Result<T, E> {
 
 impl<T> OrFail for Result<T> {
     type Value = T;
-    type Error = Failure;
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
