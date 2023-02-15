@@ -215,7 +215,6 @@ impl<T> OrFail for Result<T> {
                     code: failure.code,
                     message: failure.message,
                     backtrace: failure.backtrace,
-                    ..Default::default()
                 })
             }
         }
