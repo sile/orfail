@@ -191,22 +191,6 @@ impl<T> OrFail for Result<T> {
     }
 }
 
-/// Similar to [`std::todo!()`] but returning an `Err(Failure)` instead of panicking.
-#[macro_export]
-macro_rules! todo {
-    () => {
-        return Err($crate::Failure::new().message("not yet implemented"));
-    };
-}
-
-/// Similar to [`std::unreachable!()`] but returning an `Err(Failure)` instead of panicking.
-#[macro_export]
-macro_rules! unreachable {
-    () => {
-        return Err($crate::Failure::new().message("internal error: entered unreachable code"));
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
