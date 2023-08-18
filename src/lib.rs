@@ -2,8 +2,8 @@
 //!
 //! This crate provides,
 //!
-//! - [`Failure`] struct that represents an unrecoverable error with an error code, message and user-level backtrace
-//!   - Error code and message are optional
+//! - [`Failure`] struct that represents an unrecoverable error with an error message and user-level backtrace
+//!   - Error message is optional
 //!   - Constituted with simple types ([`u32`], [`String`], and [`Vec`] of those)
 //!     - Portable across process and language boundaries
 //!     - Optional [`serde`] support ("serde" feature)
