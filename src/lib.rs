@@ -34,8 +34,8 @@
 //! assert_eq!(safe_div(4, 0).err().map(|e| e.to_string()),
 //!            Some(
 //! r#"failed due to "expected `true` but got `false`"
-//!   at src/lib.rs:7
-//!   at src/lib.rs:12
+//!   at src/lib.rs:8
+//!   at src/lib.rs:13
 //! "#.to_owned()));
 //! ```
 #![warn(missing_docs)]
@@ -47,13 +47,6 @@ pub type Result<T> = std::result::Result<T, Failure>;
 #[derive(Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Failure {
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    /// Error code.
-    pub code: Option<u32>,
-
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -76,12 +69,6 @@ impl Failure {
         Self::default()
     }
 
-    /// Updates the error code of this [`Failure`] instance.
-    pub fn code(mut self, code: u32) -> Self {
-        self.code = Some(code);
-        self
-    }
-
     /// Updates the error message of this [`Failure`] instance.
     pub fn message(mut self, message: impl Into<String>) -> Self {
         self.message = Some(message.into());
@@ -93,7 +80,6 @@ impl Default for Failure {
     #[track_caller]
     fn default() -> Self {
         Self {
-            code: None,
             message: None,
             backtrace: vec![Location::new()],
         }
@@ -109,9 +95,6 @@ impl std::fmt::Debug for Failure {
 impl std::fmt::Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "failed")?;
-        if let Some(code) = self.code {
-            write!(f, " with error code '{code}'")?;
-        }
         if let Some(message) = &self.message {
             write!(f, " due to {message:?}")?;
         }
@@ -212,7 +195,6 @@ impl<T> OrFail for Result<T> {
             Err(mut failure) => {
                 failure.backtrace.push(Location::new());
                 Err(Failure {
-                    code: failure.code,
                     message: failure.message,
                     backtrace: failure.backtrace,
                 })
@@ -247,17 +229,10 @@ mod tests {
         assert!((false.or_fail() as Result<_>).is_err());
 
         let failure: Failure = false.or_fail().err().unwrap();
-        assert!(failure.code.is_none());
         assert!(failure.message.is_some());
         assert_eq!(failure.backtrace.len(), 1);
 
-        let failure: Failure = false
-            .or_fail()
-            .map_err(|f| f.code(10))
-            .or_fail()
-            .err()
-            .unwrap();
-        assert_eq!(failure.code, Some(10));
+        let failure: Failure = false.or_fail().or_fail().err().unwrap();
         assert!(failure.message.is_some());
         assert_eq!(failure.backtrace.len(), 2);
     }
