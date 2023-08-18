@@ -3,7 +3,6 @@
 //! This crate provides,
 //!
 //! - [`Failure`] struct that represents an unrecoverable error with an error message and user-level backtrace
-//!   - Error message is optional
 //!   - Constituted with simple types ([`u32`], [`String`], and [`Vec`] of those)
 //!     - Portable across process and language boundaries
 //!     - Optional [`serde`] support ("serde" feature)
@@ -33,26 +32,24 @@
 //! // NG
 //! assert_eq!(safe_div(4, 0).err().map(|e| e.to_string()),
 //!            Some(
-//! r#"failed due to "expected `true` but got `false`"
+//! r#"expected `true` but got `false`
 //!   at src/lib.rs:8
 //!   at src/lib.rs:13
 //! "#.to_owned()));
 //! ```
 #![warn(missing_docs)]
 
+use std::fmt::Display;
+
 /// This crate specific [`Result`](std::result::Result) type.
 pub type Result<T> = std::result::Result<T, Failure>;
 
-/// [`Failure`] typically represents an unrecoverable error with an error code, message, and backtrace.
+/// [`Failure`] represents an unrecoverable error with an error message, and backtrace.
 #[derive(Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Failure {
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
     /// Error message.
-    pub message: Option<String>,
+    pub message: String,
 
     #[cfg_attr(
         feature = "serde",
@@ -65,24 +62,18 @@ pub struct Failure {
 impl Failure {
     /// Makes a new [`Failure`] instance whose backtrace contains the current caller location.
     #[track_caller]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Updates the error message of this [`Failure`] instance.
-    pub fn message(mut self, message: impl Into<String>) -> Self {
-        self.message = Some(message.into());
-        self
+    pub fn new<T: Display>(message: T) -> Self {
+        Self {
+            message: message.to_string(),
+            backtrace: vec![Location::new()],
+        }
     }
 }
 
 impl Default for Failure {
     #[track_caller]
     fn default() -> Self {
-        Self {
-            message: None,
-            backtrace: vec![Location::new()],
-        }
+        Self::new("a failure occurred")
     }
 }
 
@@ -94,10 +85,7 @@ impl std::fmt::Debug for Failure {
 
 impl std::fmt::Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "failed")?;
-        if let Some(message) = &self.message {
-            write!(f, " due to {message:?}")?;
-        }
+        write!(f, "{}", self.message)?;
         writeln!(f)?;
         for location in &self.backtrace {
             writeln!(f, "  at {}:{}", location.file, location.line)?;
@@ -155,7 +143,7 @@ impl OrFail for bool {
         if self {
             Ok(())
         } else {
-            Err(Failure::new().message("expected `true` but got `false`"))
+            Err(Failure::new("expected `true` but got `false`"))
         }
     }
 }
@@ -168,7 +156,7 @@ impl<T> OrFail for Option<T> {
         if let Some(value) = self {
             Ok(value)
         } else {
-            Err(Failure::new().message("expected `Some(_)` but got `None`"))
+            Err(Failure::new("expected `Some(_)` but got `None`"))
         }
     }
 }
@@ -180,7 +168,7 @@ impl<T, E: std::error::Error> OrFail for std::result::Result<T, E> {
     fn or_fail(self) -> Result<Self::Value> {
         match self {
             Ok(t) => Ok(t),
-            Err(e) => Err(Failure::new().message(e.to_string())),
+            Err(e) => Err(Failure::new(e)),
         }
     }
 }
@@ -229,11 +217,9 @@ mod tests {
         assert!((false.or_fail() as Result<_>).is_err());
 
         let failure: Failure = false.or_fail().err().unwrap();
-        assert!(failure.message.is_some());
         assert_eq!(failure.backtrace.len(), 1);
 
         let failure: Failure = false.or_fail().or_fail().err().unwrap();
-        assert!(failure.message.is_some());
         assert_eq!(failure.backtrace.len(), 2);
     }
 }

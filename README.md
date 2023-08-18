@@ -11,7 +11,6 @@ An error handling library for portable unrecoverable errors.
 This crate provides,
 
 - `Failure` struct that represents an unrecoverable error with an error message and user-level backtrace
-  - Error message is optional
   - Constituted with simple types (`u32`, `String`, and `Vec` of those)
     - Portable across process and language boundaries
     - Optional `serde` support ("serde" feature)
@@ -42,7 +41,7 @@ assert_eq!(safe_div(4, 2), Ok(2));
 // NG
 assert_eq!(safe_div(4, 0).err().map(|e| e.to_string()),
            Some(
-r#"failed due to "expected `true` but got `false`"
+r#"expected `true` but got `false`
   at src/lib.rs:8
   at src/lib.rs:13
 "#.to_owned()));
