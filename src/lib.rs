@@ -129,14 +129,23 @@ pub trait OrFail: Sized {
     /// Success value type (used for the `Ok(_)` variant).
     type Value;
 
-    /// Returns `Err(Failure<C>)` if `self` is a failure value.
+    /// Type of error from which the `Failure` message is created.
+    type Error;
+
+    /// Returns `Err(Failure)` if `self` is a failure value.
     ///
-    /// If `Err(_)` is returned, this method should add the current caller location to the backtrace of the resulting `Failure<C>`.
+    /// If `Err(_)` is returned, this method should add the current caller location to the backtrace of the resulting `Failure`.
     fn or_fail(self) -> Result<Self::Value>;
+
+    /// Like [`OrFail::or_fail()`], but allows for customizing the `Failure` message.
+    fn or_fail_with<F>(self, f: F) -> Result<Self::Value>
+    where
+        F: FnOnce(Self::Error) -> String;
 }
 
 impl OrFail for bool {
     type Value = ();
+    type Error = ();
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
@@ -146,10 +155,23 @@ impl OrFail for bool {
             Err(Failure::new("expected `true` but got `false`"))
         }
     }
+
+    #[track_caller]
+    fn or_fail_with<F>(self, f: F) -> Result<Self::Value>
+    where
+        F: FnOnce(Self::Error) -> String,
+    {
+        if self {
+            Ok(())
+        } else {
+            Err(Failure::new(f(())))
+        }
+    }
 }
 
 impl<T> OrFail for Option<T> {
     type Value = T;
+    type Error = ();
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
@@ -159,10 +181,23 @@ impl<T> OrFail for Option<T> {
             Err(Failure::new("expected `Some(_)` but got `None`"))
         }
     }
+
+    #[track_caller]
+    fn or_fail_with<F>(self, f: F) -> Result<Self::Value>
+    where
+        F: FnOnce(Self::Error) -> String,
+    {
+        if let Some(value) = self {
+            Ok(value)
+        } else {
+            Err(Failure::new(f(())))
+        }
+    }
 }
 
 impl<T, E: std::error::Error> OrFail for std::result::Result<T, E> {
     type Value = T;
+    type Error = E;
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
@@ -171,10 +206,22 @@ impl<T, E: std::error::Error> OrFail for std::result::Result<T, E> {
             Err(e) => Err(Failure::new(e)),
         }
     }
+
+    #[track_caller]
+    fn or_fail_with<F>(self, f: F) -> Result<Self::Value>
+    where
+        F: FnOnce(Self::Error) -> String,
+    {
+        match self {
+            Ok(t) => Ok(t),
+            Err(e) => Err(Failure::new(f(e))),
+        }
+    }
 }
 
 impl<T> OrFail for Result<T> {
     type Value = T;
+    type Error = String;
 
     #[track_caller]
     fn or_fail(self) -> Result<Self::Value> {
@@ -184,6 +231,24 @@ impl<T> OrFail for Result<T> {
                 failure.backtrace.push(Location::new());
                 Err(Failure {
                     message: failure.message,
+                    backtrace: failure.backtrace,
+                })
+            }
+        }
+    }
+
+    #[track_caller]
+    fn or_fail_with<F>(self, f: F) -> Result<Self::Value>
+    where
+        F: FnOnce(Self::Error) -> String,
+    {
+        match self {
+            Ok(value) => Ok(value),
+            Err(mut failure) => {
+                failure.backtrace.push(Location::new());
+                let message = f(failure.message);
+                Err(Failure {
+                    message,
                     backtrace: failure.backtrace,
                 })
             }
