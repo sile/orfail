@@ -36,12 +36,20 @@
 //!   at src/lib.rs:13
 //! "#.to_owned()));
 //! ```
+#![no_std]
 #![warn(missing_docs)]
 
-use std::fmt::Display;
+extern crate alloc;
 
-/// This crate specific [`Result`](std::result::Result) type.
-pub type Result<T> = std::result::Result<T, Failure>;
+use alloc::{
+    borrow::ToOwned,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+
+/// This crate specific [`Result`](core::result::Result) type.
+pub type Result<T> = core::result::Result<T, Failure>;
 
 /// [`Failure`] represents an unrecoverable error with an error message, and backtrace.
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -56,7 +64,7 @@ pub struct Failure {
 impl Failure {
     /// Makes a new [`Failure`] instance whose backtrace contains the current caller location.
     #[track_caller]
-    pub fn new<T: Display>(message: T) -> Self {
+    pub fn new<T: core::fmt::Display>(message: T) -> Self {
         Self {
             message: message.to_string(),
             backtrace: vec![Location::new()],
@@ -71,14 +79,14 @@ impl Default for Failure {
     }
 }
 
-impl std::fmt::Debug for Failure {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
+impl core::fmt::Debug for Failure {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        core::fmt::Display::fmt(self, f)
     }
 }
 
-impl std::fmt::Display for Failure {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for Failure {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.message)?;
         writeln!(f)?;
         for location in &self.backtrace {
@@ -102,7 +110,7 @@ impl Location {
     /// Makes a new [`Location`] instance containing the caller's file name and line number.
     #[track_caller]
     pub fn new() -> Self {
-        let location = std::panic::Location::caller();
+        let location = core::panic::Location::caller();
         Self {
             file: location.file().to_owned(),
             line: location.line(),
@@ -188,7 +196,7 @@ impl<T> OrFail for Option<T> {
     }
 }
 
-impl<T, E: std::error::Error> OrFail for std::result::Result<T, E> {
+impl<T, E: core::error::Error> OrFail for core::result::Result<T, E> {
     type Value = T;
     type Error = E;
 

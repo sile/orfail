@@ -9,4 +9,4 @@ description = "Error handling library for portable unrecoverable errors"
 homepage = "https://github.com/sile/orfail"
 repository = "https://github.com/sile/orfail"
 readme = "README.md"
-
+categories = ["no-std"]
