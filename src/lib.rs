@@ -5,7 +5,6 @@
 //! - [`Failure`] struct that represents an unrecoverable error with an error message and user-level backtrace
 //!   - Constituted with simple types ([`u32`], [`String`], and [`Vec`] of those)
 //!     - Portable across process and language boundaries
-//!     - Optional [`serde`] support ("serde" feature)
 //!   - Doesn't implement [`std::error::Error`] trait
 //! - [`OrFail`] trait
 //!   - Backtrace location is appended to [`Failure`] each time when calling [`OrFail::or_fail()`]
@@ -46,15 +45,10 @@ pub type Result<T> = std::result::Result<T, Failure>;
 
 /// [`Failure`] represents an unrecoverable error with an error message, and backtrace.
 #[derive(Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Failure {
     /// Error message.
     pub message: String,
 
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Vec::is_empty")
-    )]
     /// Backtrace.
     pub backtrace: Vec<Location>,
 }
@@ -96,7 +90,6 @@ impl std::fmt::Display for Failure {
 
 /// A location in the backtrace of a [`Failure`] instance.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Location {
     /// File name.
     pub file: String,
