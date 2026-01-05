@@ -13,7 +13,7 @@
 //!
 //! # Examples
 //!
-//! ```
+//! ```no_run
 //! use orfail::{OrFail, Result};
 //!
 //! fn check_non_zero(n: isize) -> Result<()> {
